@@ -1,5 +1,5 @@
 
--- ОТ ТИМКИ | NEON EDITION 2.0 | Unified file + Visuals+
+-- ОТ ТИМКИ | NEON EDITION 2.2 | Synt Fling + smooth UI
 -- ЧАСТЬ 1. ВСТАВЛЯТЬ В НАЧАЛО НОВОГО ФАЙЛА.
 -- Запускать только ПОСЛЕ добавления последней части.
 local Players = game:GetService("Players")
@@ -57,6 +57,10 @@ local ok, err = xpcall(function()
         hitboxEnabled = false, hitboxSize = 10,
         wallbangEnabled = false, antiFlingEnabled = false,
         theme = "cyan",
+        espBoxes = true, espTracers = true, espHealth = true,
+        espNames = true, espMeters = true, espFriendTag = true,
+        espHighlight = false,
+        flingAllSkipFriends = true, flingAllSkipWhitelist = true,
         popupEnabled = true, popupBehindWalls = false,
         popupHold = 0, popupRadius = 35, popupCenter = false,
         fpsOverlay = true, audioId = "", audioVolume = 0.5,
@@ -260,7 +264,8 @@ local ok, err = xpcall(function()
 
     -- ===== ЧАСТЬ 2: NEON LANDSCAPE UI =====
 
-    local menu = new("Frame", gui, {
+    local menu = new("CanvasGroup", gui, {
+        GroupTransparency = 1,
         Name = "NeonMainWindow",
         Size = UDim2.fromOffset(760, 330),
         Position = UDim2.fromOffset(20, 15),
@@ -395,7 +400,8 @@ local ok, err = xpcall(function()
         TextXAlignment = Enum.TextXAlignment.Left
     })
 
-    local pageHost = new("Frame", content, {
+    local pageHost = new("CanvasGroup", content, {
+        GroupTransparency = 0,
         Position = UDim2.fromOffset(0, 31),
         Size = UDim2.new(1, 0, 1, -31),
         BackgroundTransparency = 1,
@@ -1114,7 +1120,7 @@ do
 
                 highlight.FillColor = color
                 highlight.OutlineColor = color
-                highlight.Enabled = true
+                highlight.Enabled = settings.espHighlight == true
             end
         end
     end
@@ -1131,6 +1137,7 @@ do
             OutlineColor = espColor,
             FillTransparency = 0.5,
             OutlineTransparency = 0.05,
+            Enabled = settings.espHighlight == true,
             DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         })
         highlights[other] = highlight
@@ -1279,6 +1286,248 @@ do
         "Красный — смотрит на тебя, синий — нет", 232, 18)
 end
 
+
+    -- ===== ЧАСТЬ 5A: ESP 2D / BOXES / TRACERS / HEALTH =====
+    -- Собственная реализация через ScreenGui. Не зависит от Drawing API.
+    do
+        local oldOverlay = playerGui:FindFirstChild("TimkaNeonESP2D")
+        if oldOverlay then oldOverlay:Destroy() end
+        local overlay = new("ScreenGui", playerGui, {
+            Name = "TimkaNeonESP2D", ResetOnSpawn = false,
+            DisplayOrder = 45, IgnoreGuiInset = false,
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        })
+        local surface = new("Frame", overlay, {
+            Name = "ScreenLayer", Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            Active = false
+        })
+        local overlays = {}
+        local paintTimer = 0
+        local function espBoxColor()
+            local rgb = settings.espColor or {255, 65, 95}
+            return Color3.fromRGB(
+                math.clamp(tonumber(rgb[1]) or 255, 0, 255),
+                math.clamp(tonumber(rgb[2]) or 65, 0, 255),
+                math.clamp(tonumber(rgb[3]) or 95, 0, 255)
+            )
+        end
+        local function makeView(other)
+            local group = new("Frame", surface, {
+                Name = "ESP2D_" .. tostring(other.UserId),
+                Size = UDim2.fromScale(1, 1),
+                BackgroundTransparency = 1, BorderSizePixel = 0,
+                Visible = false, Active = false
+            })
+            local box = new("Frame", group, {
+                BackgroundTransparency = 1, BorderSizePixel = 0,
+                Size = UDim2.fromOffset(20, 50)
+            })
+            local outline = new("UIStroke", box, {
+                Color = espBoxColor(), Thickness = 1.7,
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })
+            local tracer = new("Frame", group, {
+                Name = "Tracer", BackgroundColor3 = espBoxColor(),
+                BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5),
+                Size = UDim2.fromOffset(1.5, 50)
+            })
+            local nameLabel = new("TextLabel", group, {
+                Name = "PlayerName", BackgroundTransparency = 1,
+                TextColor3 = espBoxColor(), TextStrokeColor3 = Color3.new(),
+                TextStrokeTransparency = 0.15, Font = Enum.Font.GothamBold,
+                TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd,
+                Text = "", TextXAlignment = Enum.TextXAlignment.Center
+            })
+            local friendLabel = new("TextLabel", group, {
+                Name = "FriendLabel", BackgroundTransparency = 1,
+                TextColor3 = Color3.fromRGB(70, 255, 125),
+                TextStrokeColor3 = Color3.new(),
+                TextStrokeTransparency = 0.1,
+                Font = Enum.Font.GothamBold, TextSize = 12,
+                Text = "(Друг)", TextXAlignment = Enum.TextXAlignment.Center
+            })
+            local healthBg = new("Frame", group, {
+                Name = "HealthBack", BackgroundColor3 = Color3.fromRGB(15, 17, 22),
+                BorderSizePixel = 0, Size = UDim2.fromOffset(4, 50)
+            })
+            local healthFill = new("Frame", healthBg, {
+                Name = "HealthFill", BackgroundColor3 = Color3.fromRGB(45, 235, 80),
+                BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 1),
+                Position = UDim2.fromScale(0, 1),
+                Size = UDim2.fromScale(1, 1)
+            })
+            local record = {
+                group = group, box = box, outline = outline, tracer = tracer,
+                name = nameLabel, friend = friendLabel,
+                health = healthBg, fill = healthFill
+            }
+            overlays[other] = record
+            return record
+        end
+        local function removeView(other)
+            local view = overlays[other]
+            if view then
+                overlays[other] = nil
+                view.group:Destroy()
+            end
+        end
+        local function projectBounds(cam, character)
+            local pivot, size = character:GetBoundingBox()
+            local half = size * 0.5
+            local left, top = math.huge, math.huge
+            local right, bottom = -math.huge, -math.huge
+            local pointsInFront = 0
+            for xi = -1, 1, 2 do
+                for yi = -1, 1, 2 do
+                    for zi = -1, 1, 2 do
+                        local point = pivot:PointToWorldSpace(Vector3.new(
+                            xi * half.X, yi * half.Y, zi * half.Z))
+                        local projected = cam:WorldToScreenPoint(point)
+                        if projected.Z > 0.05 then
+                            pointsInFront = pointsInFront + 1
+                            left = math.min(left, projected.X)
+                            top = math.min(top, projected.Y)
+                            right = math.max(right, projected.X)
+                            bottom = math.max(bottom, projected.Y)
+                        end
+                    end
+                end
+            end
+            if pointsInFront < 8 or right - left < 3 or bottom - top < 8 then
+                return nil
+            end
+            local viewSize = surface.AbsoluteSize
+            if right < 0 or bottom < 0 or left > viewSize.X
+                or top > viewSize.Y then return nil end
+            local paddingX = math.min(7, (right - left) * 0.12)
+            local paddingY = math.min(5, (bottom - top) * 0.08)
+            return left - paddingX, top - paddingY,
+                right + paddingX, bottom + paddingY
+        end
+        local function drawView(other, cam, selfRoot)
+            local view = overlays[other] or makeView(other)
+            local character = other.Character
+            local hum = character and character:FindFirstChildOfClass("Humanoid")
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+            if not character or not hum or hum.Health <= 0
+                or not root or not root:IsA("BasePart") then
+                view.group.Visible = false
+                return
+            end
+            local left, top, right, bottom = projectBounds(cam, character)
+            if not left then view.group.Visible = false; return end
+            local width, height = right - left, bottom - top
+            local color = espBoxColor()
+            view.group.Visible = true
+            view.box.Visible = settings.espBoxes ~= false
+            view.box.Position = UDim2.fromOffset(left, top)
+            view.box.Size = UDim2.fromOffset(width, height)
+            view.outline.Color = color
+
+            local showName = settings.espNames ~= false
+            local showMeters = settings.espMeters ~= false
+            view.name.Visible = showName or showMeters
+            local distanceMeters = selfRoot and math.floor(
+                (selfRoot.Position - root.Position).Magnitude * 0.28 + 0.5) or 0
+            local userLabel = showName and other.Name or ""
+            local metersLabel = showMeters and ("[" .. distanceMeters .. "м]") or ""
+            local hp = math.max(0, math.ceil(hum.Health))
+            view.name.Text = userLabel .. (userLabel ~= "" and " " or "")
+                .. metersLabel .. " [" .. hp .. " HP]"
+            view.name.TextColor3 = color
+            view.name.Position = UDim2.fromOffset(left - 65, top - 23)
+            view.name.Size = UDim2.fromOffset(width + 130, 20)
+
+            view.friend.Visible = settings.espFriendTag ~= false
+                and friendCache[other] == true
+            view.friend.Position = UDim2.fromOffset(left - 65, top - 42)
+            view.friend.Size = UDim2.fromOffset(width + 130, 18)
+
+            local ratio = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
+            view.health.Visible = settings.espHealth ~= false
+            view.health.Position = UDim2.fromOffset(left - 9, top)
+            view.health.Size = UDim2.fromOffset(5, height)
+            view.fill.Size = UDim2.fromScale(1, ratio)
+            view.fill.BackgroundColor3 = Color3.fromHSV(ratio / 3, 0.95, 1)
+
+            local showTracer = settings.espTracers ~= false
+            view.tracer.Visible = showTracer
+            if showTracer then
+                local viewSize = surface.AbsoluteSize
+                local x1, y1 = viewSize.X * 0.5, viewSize.Y - 5
+                local x2, y2 = (left + right) * 0.5, bottom
+                local dx, dy = x2 - x1, y2 - y1
+                local length = math.sqrt(dx * dx + dy * dy)
+                view.tracer.Position = UDim2.fromOffset((x1 + x2) * 0.5,
+                    (y1 + y2) * 0.5)
+                view.tracer.Size = UDim2.fromOffset(length, 1.5)
+                view.tracer.Rotation = math.deg(math.atan2(dy, dx))
+                view.tracer.BackgroundColor3 = color
+            end
+        end
+        local function redrawAll()
+            local cam = Workspace.CurrentCamera
+            if not active or not espEnabled or not cam then
+                for _, view in pairs(overlays) do view.group.Visible = false end
+                return
+            end
+            local char = player.Character
+            local selfRoot = char and char:FindFirstChild("HumanoidRootPart")
+            for _, other in ipairs(Players:GetPlayers()) do
+                if other ~= player then drawView(other, cam, selfRoot) end
+            end
+        end
+        connect(RunService.RenderStepped, function(dt)
+            paintTimer = paintTimer + dt
+            local interval = #Players:GetPlayers() > 18 and 0.12 or 0.065
+            if paintTimer >= interval then
+                paintTimer = 0
+                redrawAll()
+            end
+        end)
+        connect(Players.PlayerRemoving, removeView)
+        registerCleanup(function()
+            for other in pairs(overlays) do removeView(other) end
+            if overlay.Parent then overlay:Destroy() end
+        end)
+
+        -- Управляем поверх старого ESP, не меняя его данные об игроках.
+        local card, inside = uiCard("esp", "▣  ESP 2D / РАМКИ И ЗДОРОВЬЕ", 464)
+        local toggles = {
+            {"2D-рамка вокруг игрока", "espBoxes"},
+            {"Линия от низа экрана", "espTracers"},
+            {"Полоска здоровья слева", "espHealth"},
+            {"Показывать ник", "espNames"},
+            {"Расстояние в метрах", "espMeters"},
+            {"Зелёная метка (Друг)", "espFriendTag"},
+            {"Старая подсветка тела", "espHighlight"}
+        }
+        for index, item in ipairs(toggles) do
+            local key = item[2]
+            uiToggle(inside, item[1], (index - 1) * 36,
+                settings[key] ~= false, function(value)
+                    settings[key] = value
+                    saveSettings()
+                end)
+        end
+        uiLabel(inside, "Цвет рамок и линий (RGB)", 256, 21)
+        local names = {"Красный", "Зелёный", "Синий"}
+        for i = 1, 3 do
+            local channel = i
+            local color = settings.espColor or {255, 65, 95}
+            uiStepper(inside, names[i], 281 + (i - 1) * 40,
+                math.clamp(tonumber(color[i]) or 100, 0, 255),
+                0, 255, 5, 0, function(value)
+                    if type(settings.espColor) ~= "table" then
+                        settings.espColor = {255, 65, 95}
+                    end
+                    settings.espColor[channel] = value
+                    espColor = espBoxColor()
+                    saveSettings()
+                end)
+        end
+    end
 
     -- ===== ЧАСТЬ 6: AIMBOT / TARGET SELECTION =====
     -- СП > обычный приоритет > остальные игроки.
@@ -2323,12 +2572,14 @@ do
     local currentClickedPlayer = nil
     local clickRadius = math.clamp(tonumber(settings.popupRadius) or 35, 12, 90)
     local flingActive = false
+    local flingSpin = nil
+    local flingGeneration = 0
     local flingRoot, flingCharacter, flingOldPivot = nil, nil, nil
-    local flingCamera, flingCameraSubject = nil, nil
     local priorAntiFling = nil
     local popupGeneration = 0
 
-    local clickMenu = new("Frame", gui, {
+    local clickMenu = new("CanvasGroup", gui, {
+        GroupTransparency = 1,
         Name = "TimkaPlayerPopup", Size = UDim2.fromOffset(236, 182),
         Position = UDim2.new(0.5, -118, 0.5, -91),
         BackgroundColor3 = C.base, BackgroundTransparency = 0.06,
@@ -2389,9 +2640,11 @@ do
         popupGeneration = popupGeneration + 1
         local thisGeneration = popupGeneration
         if not clickMenu.Visible then return end
-        tween(popupScale, 0.12, {Scale = 0.88},
-            Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-        task.delay(0.13, function()
+        tween(popupScale, 0.26, {Scale = 0.94},
+            Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+        tween(clickMenu, 0.24, {GroupTransparency = 1},
+            Enum.EasingStyle.Sine)
+        task.delay(0.27, function()
             if active and popupGeneration == thisGeneration then
                 clickMenu.Visible = false
             end
@@ -2417,96 +2670,124 @@ do
         popupSub.Text = "@" .. other.Name
         refreshPopupButtons()
         popupGeneration = popupGeneration + 1
+        if not clickMenu.Visible then
+            clickMenu.GroupTransparency = 1
+            popupScale.Scale = 0.92
+        end
         clickMenu.Visible = true
         if settings.popupCenter then
             clickMenu.Position = UDim2.new(0.5, -118, 0.5, -91)
         end
-        popupScale.Scale = 0.88
-        tween(popupScale, 0.22, {Scale = 1}, Enum.EasingStyle.Back)
+        tween(popupScale, 0.34, {Scale = 1}, Enum.EasingStyle.Quint)
+        tween(clickMenu, 0.32, {GroupTransparency = 0},
+            Enum.EasingStyle.Sine)
     end
     connect(popupClose.Activated, closePlayerPopup)
     connect(Players.PlayerRemoving, function(other)
         if currentClickedPlayer == other then closePlayerPopup() end
     end)
 
-    -- Останавливаем флинг и возвращаем камеру/персонажа.
+    -- ===== FLING ИЗ SYNT FLING PANEL =====
+    -- Источник: rawscripts.net/raw/Universal-Script-Synt-Fling-Panel-46669
+    -- Основа оригинала: BodyAngularVelocity + CFrame цели со смещением.
+    -- Адаптация: таймер, отмена, возврат позиции и общие обработчики.
     local function stopFling()
+        flingGeneration = flingGeneration + 1
         flingActive = false
-        if flingCamera and flingCamera.Parent then
-            pcall(function()
-                local fallback = flingCameraSubject
-                if not fallback or not fallback.Parent then
-                    local char = player.Character
-                    fallback = char and char:FindFirstChildOfClass("Humanoid")
-                end
-                if fallback then flingCamera.CameraSubject = fallback end
-            end)
+        if flingSpin then
+            pcall(function() flingSpin:Destroy() end)
+            flingSpin = nil
         end
         if flingRoot and flingRoot.Parent then
-            flingRoot.AssemblyLinearVelocity = Vector3.zero
-            flingRoot.AssemblyAngularVelocity = Vector3.zero
-            if flingCharacter == player.Character and flingOldPivot then
-                pcall(function() flingCharacter:PivotTo(flingOldPivot) end)
-            end
+            pcall(function()
+                flingRoot.AssemblyAngularVelocity = Vector3.zero
+                flingRoot.AssemblyLinearVelocity = Vector3.zero
+                if flingCharacter == player.Character and flingOldPivot then
+                    flingCharacter:PivotTo(flingOldPivot)
+                end
+            end)
         end
         flingRoot, flingCharacter, flingOldPivot = nil, nil, nil
-        flingCamera, flingCameraSubject = nil, nil
         if priorAntiFling ~= nil then
             antiFlingEnabled, priorAntiFling = priorAntiFling, nil
         end
     end
-    local function doFling(other)
-        if flingActive then status("Флинг уже выполняется"); return end
-        if not active or not other or other.Parent ~= Players then return end
+
+    local function doFling(other, onFinished)
+        if flingActive then
+            status("Флинг уже выполняется")
+            if onFinished then pcall(onFinished, false) end
+            return
+        end
+        if not active or not other or other.Parent ~= Players then
+            if onFinished then pcall(onFinished, false) end
+            return
+        end
         if spinEnabled then
-            status("Перед флингом выключи вращение")
+            status("Перед флингом выключи Spin")
+            if onFinished then pcall(onFinished, false) end
             return
         end
         local myChar, targetChar = player.Character, other.Character
         local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        local targetHum = targetChar
-            and targetChar:FindFirstChildOfClass("Humanoid")
-        local targetRoot = targetChar
-            and targetChar:FindFirstChild("HumanoidRootPart")
+        local targetHum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
+        local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
         if not myHum or myHum.Health <= 0 or not myRoot or myRoot.Anchored
             or not targetHum or targetHum.Health <= 0 or not targetRoot then
             status("Флинг: персонаж или цель не готовы")
+            if onFinished then pcall(onFinished, false) end
             return
         end
+
+        flingGeneration = flingGeneration + 1
+        local token = flingGeneration
         flingActive = true
         priorAntiFling = antiFlingEnabled
         antiFlingEnabled = false
         flingRoot, flingCharacter = myRoot, myChar
         flingOldPivot = myChar:GetPivot()
-        flingCamera = Workspace.CurrentCamera
-        flingCameraSubject = flingCamera and flingCamera.CameraSubject
+
+        -- Значения перенесены из Synt.t startFling() с ограничением времени.
+        local spinOK, spinError = pcall(function()
+            flingSpin = Instance.new("BodyAngularVelocity")
+            flingSpin.Name = "TimkaSyntFlingSpin"
+            flingSpin.AngularVelocity = Vector3.new(0, 999999, 0)
+            flingSpin.MaxTorque = Vector3.new(999999, 999999, 999999)
+            flingSpin.P = 10000
+            flingSpin.Parent = myRoot
+        end)
+        if not spinOK then
+            stopFling()
+            status("Флинг: не удалось включить вращение — " .. tostring(spinError))
+            if onFinished then pcall(onFinished, false) end
+            return
+        end
+
         task.spawn(function()
-            local ok, message = pcall(function()
-                if flingCamera then
-                    flingCamera.CameraSubject = targetHum
-                end
-                local start = os.clock()
-                local angle = 0
-                while active and flingActive and os.clock() - start < 1.6 do
+            local success, message = pcall(function()
+                local began = os.clock()
+                local lastTeleport = -math.huge
+                while active and flingActive and token == flingGeneration
+                    and os.clock() - began < 1.05 do
                     if myChar ~= player.Character or not myRoot.Parent
                         or not targetRoot.Parent or targetHum.Health <= 0 then
                         break
                     end
-                    angle = angle + 100
-                    local targetPosition = targetRoot.Position
-                    myChar:PivotTo(CFrame.new(targetPosition)
-                        * CFrame.new(0, 1.5, 0)
-                        * CFrame.Angles(math.rad(angle), 0, 0))
-                    myRoot.AssemblyLinearVelocity = Vector3.new(9e7, 9e8, 9e7)
-                    myRoot.AssemblyAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
+                    -- Смещение +2 studs как в Synt teleportAndFlingOnce().
+                    if os.clock() - lastTeleport >= 0.10 then
+                        myRoot.CFrame = targetRoot.CFrame + Vector3.new(2, 0, 0)
+                        lastTeleport = os.clock()
+                    end
                     RunService.Heartbeat:Wait()
                 end
             end)
-            stopFling()
-            if active then
-                status(ok and "Флинг завершён (эффект зависит от игры)"
-                    or ("Флинг: " .. tostring(message)))
+            local completedNormally = token == flingGeneration
+            if completedNormally then stopFling() end
+            if onFinished then pcall(onFinished, completedNormally and success) end
+            if active and completedNormally then
+                status(success and "Synt Fling завершён (зависит от игры)"
+                    or ("Ошибка Synt Fling: " .. tostring(message)))
             end
         end)
     end
@@ -2613,6 +2894,250 @@ do
         table.clear(tapBegins)
         popupGeneration = popupGeneration + 1
     end)
+    -- ===== FLING TP (ALL PLAYERS): ПО ОДНОЙ ЦЕЛИ =====
+    -- Независимая очередь. Остановить можно одной кнопкой.
+    local flingAllRunning = false
+    local flingAllTicket = 0
+    local function stopFlingAll()
+        flingAllTicket = flingAllTicket + 1
+        flingAllRunning = false
+        stopFling()
+    end
+    local function startFlingAll()
+        if flingAllRunning or flingActive then
+            status("Fling TP: дождись завершения предыдущего действия")
+            return
+        end
+        if spinEnabled then
+            status("Fling TP: сначала выключи Spin")
+            return
+        end
+        local targets = {}
+        for _, other in ipairs(Players:GetPlayers()) do
+            if other ~= player
+                and (not settings.flingAllSkipFriends
+                    or friendCache[other] ~= true)
+                and (not settings.flingAllSkipWhitelist
+                    or not whiteList[other.UserId]) then
+                table.insert(targets, other)
+            end
+        end
+        if #targets == 0 then
+            status("Fling TP: нет подходящих игроков")
+            return
+        end
+        flingAllRunning = true
+        flingAllTicket = flingAllTicket + 1
+        local ticket = flingAllTicket
+        status("Fling TP: очередь из " .. #targets .. " игроков")
+        task.spawn(function()
+            for index, other in ipairs(targets) do
+                if not active or not flingAllRunning
+                    or ticket ~= flingAllTicket then break end
+                if other.Parent == Players then
+                    local finished = false
+                    status("Fling TP: " .. index .. "/" .. #targets
+                        .. " — " .. other.Name)
+                    doFling(other, function()
+                        finished = true
+                    end)
+                    local deadline = os.clock() + 2.2
+                    while active and flingAllRunning
+                        and ticket == flingAllTicket
+                        and not finished and os.clock() < deadline do
+                        task.wait(0.05)
+                    end
+                    if not finished and flingActive then stopFling() end
+                    task.wait(0.12)
+                end
+            end
+            if active and ticket == flingAllTicket then
+                flingAllRunning = false
+                status("Fling TP: очередь завершена (результат зависит от игры)")
+            end
+        end)
+    end
+    -- ===== FLING ВЫБРАННОГО ИГРОКА: ВСТРОЕН В НАШЕ МЕНЮ =====
+    -- Принцип поиска по части ника из Synt findTarget().
+    do
+        local selectedPlayer = nil
+        local flingSelectCard, selectInside = uiCard(
+            "protection", "⚡  SYNT FLING / ВЫБОР ИГРОКА", 343)
+        local searchBox = new("TextBox", selectInside, {
+            Name = "TimkaFlingPlayerSearch",
+            Position = UDim2.fromOffset(0, 0),
+            Size = UDim2.new(1, 0, 0, 32),
+            BackgroundColor3 = C.panelLight,
+            BorderSizePixel = 0, Text = "",
+            PlaceholderText = "Имя или часть ника игрока...",
+            PlaceholderColor3 = C.muted,
+            ClearTextOnFocus = false,
+            TextColor3 = C.white, TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Font = Enum.Font.Gotham
+        })
+        corner(searchBox, 9)
+        stroke(searchBox, violet, 0.48)
+        local selectedStatus = uiStatus(
+            selectInside, "Выбери игрока из списка ниже", 37)
+
+        local listSurface = new("CanvasGroup", selectInside, {
+            Name = "TimkaFlingPlayerList",
+            Position = UDim2.fromOffset(0, 74),
+            Size = UDim2.new(1, 0, 0, 127),
+            BackgroundColor3 = C.base,
+            BackgroundTransparency = 0.48,
+            GroupTransparency = 0,
+            BorderSizePixel = 0, ClipsDescendants = true
+        })
+        corner(listSurface, 9)
+        local results = new("ScrollingFrame", listSurface, {
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = cyan,
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            CanvasSize = UDim2.fromOffset(0, 0),
+            ScrollingDirection = Enum.ScrollingDirection.Y
+        })
+        new("UIListLayout", results, {
+            Padding = UDim.new(0, 4),
+            SortOrder = Enum.SortOrder.LayoutOrder
+        })
+        new("UIPadding", results, {
+            PaddingTop = UDim.new(0, 5),
+            PaddingBottom = UDim.new(0, 5),
+            PaddingLeft = UDim.new(0, 5),
+            PaddingRight = UDim.new(0, 9)
+        })
+        local renderedButtons = {}
+        local function updateResults()
+            if not active then return end
+            for _, button in ipairs(renderedButtons) do
+                if button.Parent then button:Destroy() end
+            end
+            table.clear(renderedButtons)
+            local needle = string.lower(searchBox.Text)
+            local candidates = {}
+            for _, other in ipairs(Players:GetPlayers()) do
+                if other ~= player and (
+                    needle == ""
+                    or string.find(string.lower(other.Name), needle, 1, true)
+                    or string.find(string.lower(other.DisplayName), needle, 1, true)
+                ) then
+                    table.insert(candidates, other)
+                end
+            end
+            table.sort(candidates, function(a,b) return a.Name < b.Name end)
+            for index, other in ipairs(candidates) do
+                local button = new("TextButton", results, {
+                    Name = "Target_" .. other.UserId,
+                    Size = UDim2.new(1, 0, 0, 29),
+                    LayoutOrder = index,
+                    BackgroundColor3 = selectedPlayer == other
+                        and Color3.fromRGB(24, 101, 119) or C.panelLight,
+                    Text = other.DisplayName .. " (@" .. other.Name .. ")",
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextColor3 = C.white,
+                    TextSize = 12, Font = Enum.Font.Gotham,
+                    BorderSizePixel = 0, AutoButtonColor = false
+                })
+                corner(button, 7)
+                -- Destroy() автоматически отключает событие от старой кнопки.
+                button.Activated:Connect(function()
+                    if not active or other.Parent ~= Players then return end
+                    selectedPlayer = other
+                    selectedStatus.Text = "Выбран: " .. other.Name
+                    for _, listed in ipairs(renderedButtons) do
+                        if listed.Parent then
+                            tween(listed, 0.19, {
+                                BackgroundColor3 = listed == button
+                                    and Color3.fromRGB(24, 101, 119)
+                                    or C.panelLight
+                            }, Enum.EasingStyle.Sine)
+                        end
+                    end
+                end)
+                table.insert(renderedButtons, button)
+            end
+            -- Переполнение списка не создаёт второго всплывающего окна.
+            tween(listSurface, 0.19, {GroupTransparency = 0}, Enum.EasingStyle.Sine)
+        end
+        connect(searchBox:GetPropertyChangedSignal("Text"), function()
+            if not active then return end
+            listSurface.GroupTransparency = 0.17
+            updateResults()
+        end)
+        connect(Players.PlayerAdded, updateResults)
+        connect(Players.PlayerRemoving, function(other)
+            if selectedPlayer == other then
+                selectedPlayer = nil
+                selectedStatus.Text = "Игрок вышел — выбери другого"
+            end
+            task.defer(updateResults)
+        end)
+        local selectFlingButton = uiButton(
+            selectInside, "⚡ Флинг выбранного игрока", 214, function()
+                local other = selectedPlayer
+                if (not other or other.Parent ~= Players)
+                    and searchBox.Text ~= "" then
+                    local term = string.lower(searchBox.Text)
+                    for _, candidate in ipairs(Players:GetPlayers()) do
+                        if candidate ~= player and
+                            string.sub(string.lower(candidate.Name), 1, #term) == term then
+                            other = candidate
+                            break
+                        end
+                    end
+                end
+                if not other or other.Parent ~= Players then
+                    selectedStatus.Text = "Сначала выбери игрока!"
+                    return
+                end
+                selectedPlayer = other
+                selectedStatus.Text = "Fling: " .. other.Name
+                doFling(other)
+            end, cyan)
+        selectFlingButton.Size = UDim2.new(0.70, -3, 0, 35)
+        local selectStopButton = uiButton(
+            selectInside, "■ СТОП", 214, function()
+                stopFling()
+                selectedStatus.Text = "Fling остановлен"
+            end, C.red)
+        selectStopButton.Position = UDim2.new(0.71, 0, 0, 214)
+        selectStopButton.Size = UDim2.new(0.29, 0, 0, 35)
+        uiLabel(selectInside,
+            "Никаких отдельных окон: список и кнопка внутри вкладки «Защита».",
+            259, 28)
+        updateResults()
+    end
+
+    local allCard, allInside = uiCard(
+        "protection", "⚡  FLING TP / ВСЕ ИГРОКИ", 215)
+    uiLabel(allInside,
+        "Обходит цели по очереди. Способ срабатывает не во всех играх.",
+        0, 35)
+    uiToggle(allInside, "Пропускать друзей", 42,
+        settings.flingAllSkipFriends ~= false, function(value)
+            settings.flingAllSkipFriends = value
+            saveSettings()
+        end)
+    uiToggle(allInside, "Пропускать белый список", 78,
+        settings.flingAllSkipWhitelist ~= false, function(value)
+            settings.flingAllSkipWhitelist = value
+            saveSettings()
+        end)
+    local flingAllButton = uiButton(
+        allInside, "⚡ FLING TP (ALL PLAYERS)", 118, startFlingAll, cyan)
+    flingAllButton.Size = UDim2.new(0.6, -4, 0, 34)
+    local stopAllButton = uiButton(
+        allInside, "СТОП", 118, stopFlingAll, C.red)
+    stopAllButton.Position = UDim2.new(0.61, 0, 0, 118)
+    stopAllButton.Size = UDim2.new(0.39, 0, 0, 34)
+    registerCleanup(stopFlingAll)
+
     end
 
 
@@ -4361,29 +4886,36 @@ end
             task.defer(fitLandscape)
         end)
 
+        -- Плавность через CanvasGroup: всё содержимое проявляется вместе.
         local function setMenuOpen(open)
-            if not active then return end
-            if menuTargetOpen == open then return end
+            if not active or menuTargetOpen == open then return end
             menuTargetOpen = open
             transitionId = transitionId + 1
             local id = transitionId
             if open then
                 fitLandscape()
+                if not menu.Visible then
+                    menuScale.Scale = 0.94
+                    menu.GroupTransparency = 1
+                    menu.BackgroundTransparency = 0.30
+                end
                 menu.Visible = true
-                menuScale.Scale = math.min(menuScale.Scale, 0.84)
-                menu.BackgroundTransparency = 0.3
-                tween(menuScale, 0.52, {Scale = 1}, Enum.EasingStyle.Quint)
-                tween(menu, 0.44, {BackgroundTransparency = 0.03}, Enum.EasingStyle.Sine)
-                tween(menuStroke, 0.48, {Transparency = 0.08}, Enum.EasingStyle.Sine)
-                tween(openButton, 0.18, {BackgroundTransparency = 0.25})
+                tween(menuScale, 0.56, {Scale = 1}, Enum.EasingStyle.Quint)
+                tween(menu, 0.49, {
+                    GroupTransparency = 0, BackgroundTransparency = 0.03
+                }, Enum.EasingStyle.Sine)
+                tween(menuStroke, 0.43, {Transparency = 0.08}, Enum.EasingStyle.Sine)
+                tween(openButton, 0.2, {BackgroundTransparency = 0.25})
             else
                 dragInput = nil
-                tween(menuScale, 0.27, {Scale = 0.87},
-                    Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-                tween(menu, 0.26, {BackgroundTransparency = 0.5})
-                tween(menuStroke, 0.26, {Transparency = 0.7})
-                tween(openButton, 0.18, {BackgroundTransparency = 0})
-                task.delay(0.29, function()
+                tween(menuScale, 0.32, {Scale = 0.95},
+                    Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+                tween(menu, 0.31, {
+                    GroupTransparency = 1, BackgroundTransparency = 0.35
+                }, Enum.EasingStyle.Sine)
+                tween(menuStroke, 0.31, {Transparency = 0.70})
+                tween(openButton, 0.23, {BackgroundTransparency = 0})
+                task.delay(0.34, function()
                     if active and transitionId == id and not menuTargetOpen then
                         menu.Visible = false
                     end
@@ -4468,15 +5000,26 @@ end
             dragMoved, buttonMoved = false, false
         end)
 
-        -- Плавное проявление содержимого при переключении вкладок.
+        -- Переключаем вкладки через плавный fade-out и fade-in.
         local pageScale = new("UIScale", pageHost, {Scale = 1})
         local oldSetPage = setPage
+        local pageTransitionId = 0
+        local requestedPage = currentPage
         setPage = function(id)
-            if not pages[id] then return end
-            if currentPage == id then return end
-            oldSetPage(id)
-            pageScale.Scale = 0.96
-            tween(pageScale, 0.2, {Scale = 1}, Enum.EasingStyle.Quad)
+            if not pages[id] or requestedPage == id then return end
+            requestedPage = id
+            pageTransitionId = pageTransitionId + 1
+            local requestId = pageTransitionId
+            tween(pageHost, 0.11, {GroupTransparency = 1}, Enum.EasingStyle.Sine)
+            tween(pageScale, 0.11, {Scale = 0.98}, Enum.EasingStyle.Sine)
+            task.delay(0.12, function()
+                if not active or requestId ~= pageTransitionId then return end
+                oldSetPage(id)
+                pageHost.GroupTransparency = 1
+                pageScale.Scale = 0.97
+                tween(pageHost, 0.29, {GroupTransparency = 0}, Enum.EasingStyle.Sine)
+                tween(pageScale, 0.32, {Scale = 1}, Enum.EasingStyle.Quint)
+            end)
         end
 
         -- ===== ТЕМЫ ОФОРМЛЕНИЯ =====
