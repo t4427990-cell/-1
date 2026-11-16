@@ -1,5 +1,5 @@
 
--- ОТ ТИМКИ | NEON EDITION 2.3 | Readable UI + precise ESP
+-- ОТ ТИМКИ | NEON EDITION 2.4 | Neon UI Refined + Player Fling
 -- ЧАСТЬ 1. ВСТАВЛЯТЬ В НАЧАЛО НОВОГО ФАЙЛА.
 -- Запускать только ПОСЛЕ добавления последней части.
 local Players = game:GetService("Players")
@@ -57,6 +57,7 @@ local ok, err = xpcall(function()
         hitboxEnabled = false, hitboxSize = 10,
         wallbangEnabled = false, antiFlingEnabled = false,
         theme = "cyan",
+        menuWidth = 950, menuHeight = 515,
         espBoxes = true, espTracers = true, espHealth = true,
         espNames = true, espMeters = true, espFriendTag = true,
         espHighlight = false, espPaletteVersion = 0,
@@ -248,14 +249,15 @@ local ok, err = xpcall(function()
     connect(gui.Destroying, cleanup)
 
     -- Дизайн: тёмное стекло + цианово-фиолетовый неон.
+    -- Единая палитра всех страниц: фон насыщенный, текст контрастный.
     local C = {
-        base = Color3.fromRGB(12, 19, 36),
-        panel = Color3.fromRGB(24, 35, 59),
-        panelLight = Color3.fromRGB(36, 50, 82),
-        muted = Color3.fromRGB(196, 208, 232),
-        white = Color3.fromRGB(250, 252, 255),
-        green = Color3.fromRGB(30, 216, 186),
-        red = Color3.fromRGB(230, 80, 113)
+        base = Color3.fromRGB(5, 9, 28),
+        panel = Color3.fromRGB(11, 17, 45),
+        panelLight = Color3.fromRGB(20, 30, 66),
+        muted = Color3.fromRGB(184, 202, 238),
+        white = Color3.fromRGB(251, 251, 255),
+        green = Color3.fromRGB(61, 240, 160),
+        red = Color3.fromRGB(247, 70, 125)
     }
     local openButton = new("TextButton", gui, {
         Name = "TimkaOpenButton",
@@ -289,24 +291,70 @@ local ok, err = xpcall(function()
         BorderSizePixel = 0,
         Visible = false,
         Active = true,
-        ClipsDescendants = true,
+        ClipsDescendants = false,
         ZIndex = 3
     })
-    corner(menu, 16)
-    local menuStroke = stroke(menu, cyan, 0.08, 2)
-    -- Без градиента на корне: все надписи остаются светлыми.
+    corner(menu, 19)
+    local menuStroke = stroke(menu, cyan, 0.015, 2.5)
     local menuScale = new("UIScale", menu, {Scale = 0.92})
+
+    -- Слой неонового фона делаем ОТДЕЛЬНО от текста.
+    -- Градиент на Frame не окрашивает вложенные UI других слоёв.
+    local neonBackdrop = new("Frame", menu, {
+        Name = "TimkaNeonBackdrop", Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = C.base, BorderSizePixel = 0, ZIndex = 1,
+        ClipsDescendants = true
+    })
+    corner(neonBackdrop, 19)
+    gradient(neonBackdrop, Color3.fromRGB(6, 9, 33),
+        Color3.fromRGB(23, 8, 58), 22)
+    -- Имитация светящихся диагональных полос (без внешних assets).
+    for i = 1, 10 do
+        local x = 0.17 + (i - 1) * 0.091
+        local streak = new("Frame", neonBackdrop, {
+            Name = "EnergyStreak" .. i,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(x, 0, 0.56, 0),
+            Size = UDim2.new(0, i % 3 == 0 and 2 or 1, 1.65, 0),
+            Rotation = 32,
+            BackgroundColor3 = i % 2 == 0 and cyan or violet,
+            BackgroundTransparency = i % 3 == 0 and 0.82 or 0.92,
+            BorderSizePixel = 0, ZIndex = 1
+        })
+        new("UIGradient", streak, {
+            Rotation = 90, Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.44, 0.03),
+                NumberSequenceKeypoint.new(1, 1)
+            })
+        })
+    end
+    -- Два тонких светящихся контура вокруг окна.
+    local rim = new("Frame", menu, {
+        Name = "NeonInnerRim", BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(3, 3),
+        Size = UDim2.new(1, -6, 1, -6), ZIndex = 2
+    })
+    corner(rim, 16)
+    stroke(rim, violet, 0.45, 1)
+    local halo = new("Frame", menu, {
+        Name = "NeonOuterGlow", BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(-1, -1),
+        Size = UDim2.new(1, 2, 1, 2), ZIndex = 2
+    })
+    corner(halo, 20)
+    stroke(halo, Color3.fromRGB(207, 53, 255), 0.72, 6)
 
     -- Верхняя неоновая шапка.
     local header = new("Frame", menu, {
         Name = "Header",
-        Size = UDim2.new(1, 0, 0, 48),
-        BackgroundColor3 = C.panel,
+        Size = UDim2.new(1, 0, 0, 58),
+        BackgroundColor3 = Color3.fromRGB(10, 10, 38),
         BorderSizePixel = 0,
         ZIndex = 5
     })
-    gradient(header, Color3.fromRGB(13, 37, 65),
-        Color3.fromRGB(65, 24, 106), 15)
+    gradient(header, Color3.fromRGB(10, 21, 55),
+        Color3.fromRGB(51, 8, 83), 12)
 
     local headerLine = new("Frame", header, {
         Size = UDim2.new(1, 0, 0, 2),
@@ -316,23 +364,35 @@ local ok, err = xpcall(function()
     })
     gradient(headerLine, cyan, violet, 0)
 
+    local headerEmblem = new("TextLabel", header, {
+        Name = "NeonEmblem", Position = UDim2.fromOffset(12, 8),
+        Size = UDim2.fromOffset(43, 43), BackgroundColor3 = C.base,
+        Text = "◆", TextColor3 = cyan, TextSize = 29,
+        TextStrokeColor3 = violet, TextStrokeTransparency = 0.18,
+        Font = Enum.Font.GothamBold, ZIndex = 7
+    })
+    corner(headerEmblem, 12)
+    stroke(headerEmblem, cyan, 0.02, 2)
     local dragArea = new("TextLabel", header, {
         Name = "DragArea",
-        Size = UDim2.new(1, -220, 1, 0),
-        Position = UDim2.fromOffset(15, 0),
+        Size = UDim2.new(1, -274, 1, 0),
+        Position = UDim2.fromOffset(65, 0),
         BackgroundTransparency = 1,
-        Text = "◆  ОТ ТИМКИ   ♛   NEON EDITION",
+        Text = "♛  ОТ ТИМКИ  |  NEON EDITION 2.4",
         TextColor3 = C.white,
         TextSize = 16,
+        TextStrokeColor3 = Color3.fromRGB(43, 14, 79),
+        TextStrokeTransparency = 0.6,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left,
-        Active = true
+        Active = true, ZIndex = 8
     })
 
     extrasAPI.fpsLabel = new("TextLabel", header, {
         Name = "TimkaHeaderFPS",
-        Size = UDim2.fromOffset(94, 30),
-        Position = UDim2.new(1, -187, 0, 9),
+        Size = UDim2.fromOffset(94, 31),
+        Position = UDim2.new(1, -193, 0, 13),
         BackgroundColor3 = C.panelLight,
         Text = "-- FPS", TextColor3 = C.green,
         TextSize = 12, Font = Enum.Font.GothamBold,
@@ -341,7 +401,7 @@ local ok, err = xpcall(function()
     corner(extrasAPI.fpsLabel, 8)
     local minimizeButton = new("TextButton", header, {
         Size = UDim2.fromOffset(36, 32),
-        Position = UDim2.new(1, -87, 0, 8),
+        Position = UDim2.new(1, -87, 0, 12),
         BackgroundColor3 = C.panelLight,
         Text = "−",
         TextColor3 = cyan,
@@ -353,7 +413,7 @@ local ok, err = xpcall(function()
 
     local closeButton = new("TextButton", header, {
         Size = UDim2.fromOffset(36, 32),
-        Position = UDim2.new(1, -44, 0, 8),
+        Position = UDim2.new(1, -44, 0, 12),
         BackgroundColor3 = Color3.fromRGB(68, 30, 69),
         Text = "×",
         TextColor3 = C.white,
@@ -364,8 +424,8 @@ local ok, err = xpcall(function()
     stroke(closeButton, violet, 0.2)
 
     local body = new("Frame", menu, {
-        Position = UDim2.fromOffset(8, 55),
-        Size = UDim2.new(1, -16, 1, -63),
+        Position = UDim2.fromOffset(8, 66),
+        Size = UDim2.new(1, -16, 1, -76),
         BackgroundTransparency = 1
     })
 
@@ -373,10 +433,10 @@ local ok, err = xpcall(function()
     local sidebar = new("ScrollingFrame", body, {
         Name = "Navigation",
         Size = UDim2.new(0, 160, 1, 0),
-        BackgroundColor3 = C.panel,
-        BackgroundTransparency = 0,
+        BackgroundColor3 = Color3.fromRGB(7, 11, 36),
+        BackgroundTransparency = 0.025,
         BorderSizePixel = 0,
-        ScrollBarThickness = 2,
+        ScrollBarThickness = 3,
         ScrollBarImageColor3 = violet,
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         CanvasSize = UDim2.fromOffset(0, 0),
@@ -386,7 +446,7 @@ local ok, err = xpcall(function()
     stroke(sidebar, violet, 0.6)
 
     new("UIListLayout", sidebar, {
-        Padding = UDim.new(0, 5),
+        Padding = UDim.new(0, 7),
         SortOrder = Enum.SortOrder.LayoutOrder
     })
     new("UIPadding", sidebar, {
@@ -405,19 +465,19 @@ local ok, err = xpcall(function()
     })
 
     local contentTitle = new("TextLabel", content, {
-        Size = UDim2.new(1, 0, 0, 28),
+        Size = UDim2.new(1, 0, 0, 31),
         BackgroundTransparency = 1,
         Text = "ГЛАВНАЯ",
-        TextColor3 = cyan,
-        TextSize = 15,
+        TextColor3 = C.white,
+        TextSize = 19,
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left
     })
 
     local pageHost = new("CanvasGroup", content, {
         GroupTransparency = 0,
-        Position = UDim2.fromOffset(0, 31),
-        Size = UDim2.new(1, 0, 1, -31),
+        Position = UDim2.fromOffset(0, 36),
+        Size = UDim2.new(1, 0, 1, -36),
         BackgroundTransparency = 1,
         ClipsDescendants = true
     })
@@ -453,20 +513,20 @@ local ok, err = xpcall(function()
     end
 
     local navItems = {
-        {"home", "⌂  ГЛАВНАЯ", "ГЛАВНАЯ"},
-        {"spawn", "◇  ТОЧКА ВОЗРОЖДЕНИЯ", "ТОЧКА ВОЗРОЖДЕНИЯ"},
-        {"esp", "◉  ВИЗУАЛЫ / ESP", "ВИЗУАЛЫ / ESP"},
-        {"visuals", "✧  ВИЗУАЛЫ+", "ВИЗУАЛЫ+"},
-        {"character", "♟  ПЕРСОНАЖ", "ПЕРСОНАЖ"},
-        {"protection", "⬡  ЗАЩИТА И ЧИТЫ", "ЗАЩИТА И ЧИТЫ"},
-        {"camera", "▣  КАМЕРА", "КАМЕРА"},
-        {"aim", "⊕  AIMBOT", "AIMBOT"},
-        {"priority", "♛  ПРИОРИТЕТ ИГРОКОВ", "ПРИОРИТЕТ ИГРОКОВ"},
-        {"whitelist", "♧  БЕЛЫЙ СПИСОК", "БЕЛЫЙ СПИСОК"},
-        {"flight", "➤  ПОЛЁТ / NOCLIP", "ПОЛЁТ / NOCLIP"},
-        {"playerpopup", "◎  МИНИ-МЕНЮ ИГРОКА", "МИНИ-МЕНЮ ИГРОКА"},
-        {"music", "♫  МУЗЫКА", "МУЗЫКА"},
-        {"themes", "◈  ТЕМА МЕНЮ", "ТЕМА МЕНЮ"}
+        {"home", "⌂  Главная", "ГЛАВНАЯ"},
+        {"spawn", "◇  Возрождение", "ТОЧКА ВОЗРОЖДЕНИЯ"},
+        {"esp", "⊕  ESP", "НАСТРОЙКА ESP"},
+        {"visuals", "◉  Визуалы+", "ВИЗУАЛЫ+"},
+        {"character", "♟  Персонаж", "ПЕРСОНАЖ"},
+        {"protection", "⚡  Флинг / защита", "ФЛИНГ И ЗАЩИТА"},
+        {"camera", "▣  Камера", "КАМЕРА"},
+        {"aim", "⊕  Aimbot", "AIMBOT"},
+        {"priority", "♛  Приоритеты", "ПРИОРИТЕТ ИГРОКОВ"},
+        {"whitelist", "⬡  Белый список", "БЕЛЫЙ СПИСОК"},
+        {"flight", "➤  Полёт", "ПОЛЁТ / NOCLIP"},
+        {"playerpopup", "◈  Мини-меню", "МИНИ-МЕНЮ ИГРОКА"},
+        {"music", "♫  Музыка", "МУЗЫКА"},
+        {"themes", "⚙  Настройки", "ТЕМА МЕНЮ"}
     }
 
     local function setPage(id)
@@ -478,8 +538,14 @@ local ok, err = xpcall(function()
         for pageId, object in pairs(navButtons) do
             local chosen = pageId == id
             object.BackgroundColor3 = chosen
-                and Color3.fromRGB(18, 103, 126) or C.panel
-            object.TextColor3 = chosen and cyan or C.white
+                and Color3.fromRGB(83, 21, 141) or C.panel
+            object.TextColor3 = chosen and C.white or C.muted
+            local outline = object:FindFirstChildOfClass("UIStroke")
+            if outline then
+                outline.Color = chosen and Color3.fromRGB(255, 65, 229) or violet
+                outline.Thickness = chosen and 2 or 1
+                outline.Transparency = chosen and 0.05 or 0.6
+            end
         end
         for _, item in ipairs(navItems) do
             if item[1] == id then
@@ -493,20 +559,20 @@ local ok, err = xpcall(function()
         makePage(item[1])
         local nav = new("TextButton", sidebar, {
             Name = "Nav_" .. item[1],
-            Size = UDim2.new(1, 0, 0, 36),
+            Size = UDim2.new(1, 0, 0, 41),
             BackgroundColor3 = C.panel,
             BorderSizePixel = 0,
             Text = item[2],
             TextColor3 = C.white,
-            TextSize = 11,
+            TextSize = 12,
             TextWrapped = true,
             Font = Enum.Font.GothamBold,
             TextXAlignment = Enum.TextXAlignment.Left,
             LayoutOrder = index,
             AutoButtonColor = false
         })
-        corner(nav, 8)
-        stroke(nav, violet, 0.78)
+        corner(nav, 10)
+        stroke(nav, violet, 0.62, 1)
         navButtons[item[1]] = nav
         connect(nav.Activated, function()
             setPage(item[1])
@@ -531,22 +597,29 @@ local ok, err = xpcall(function()
         local frame = new("Frame", page, {
             Name = "Card_" .. tostring(nextOrder(pageId)),
             Size = UDim2.new(1, -4, 0, height or 110),
-            BackgroundColor3 = C.panel,
-            BackgroundTransparency = 0,
+            BackgroundColor3 = Color3.fromRGB(9, 16, 44),
+            BackgroundTransparency = 0.025,
             BorderSizePixel = 0,
             LayoutOrder = uiOrder[pageId],
             ClipsDescendants = true
         })
-        corner(frame, 11)
-        stroke(frame, violet, 0.62)
+        corner(frame, 12)
+        stroke(frame, Color3.fromRGB(102, 69, 244), 0.42)
+        local topGlow = new("Frame", frame, {
+            Name = "CardNeonAccent", Position = UDim2.fromOffset(10, 30),
+            Size = UDim2.new(1, -20, 0, 1),
+            BackgroundColor3 = cyan, BackgroundTransparency = 0.4,
+            BorderSizePixel = 0
+        })
+        gradient(topGlow, cyan, Color3.fromRGB(245, 40, 240), 0)
 
         local titleLabel = new("TextLabel", frame, {
             Position = UDim2.fromOffset(12, 6),
             Size = UDim2.new(1, -24, 0, 24),
             BackgroundTransparency = 1,
             Text = titleText,
-            TextColor3 = cyan,
-            TextSize = 13,
+            TextColor3 = Color3.fromRGB(106, 231, 255),
+            TextSize = 14,
             Font = Enum.Font.GothamBold,
             TextXAlignment = Enum.TextXAlignment.Left
         })
@@ -590,12 +663,12 @@ local ok, err = xpcall(function()
             BorderSizePixel = 0,
             Text = textValue,
             TextColor3 = C.white,
-            TextSize = 12,
+            TextSize = 13,
             Font = Enum.Font.GothamBold,
             AutoButtonColor = false
         })
         corner(object, 9)
-        local outline = stroke(object, color or violet, 0.4)
+        local outline = stroke(object, color or violet, 0.22, 1.2)
         connect(object.Activated, function()
             tween(object, 0.08, {
                 BackgroundColor3 = color or cyan
@@ -614,8 +687,13 @@ local ok, err = xpcall(function()
 
     local function uiToggle(parent, textValue, y, initial, callback)
         local holder = uiRow(parent, y, 34)
+        holder.BackgroundColor3 = Color3.fromRGB(17, 24, 59)
+        holder.BackgroundTransparency = 0.08
+        corner(holder, 10)
+        stroke(holder, Color3.fromRGB(75, 75, 172), 0.56)
         local caption = new("TextLabel", holder, {
-            Size = UDim2.new(1, -61, 1, 0),
+            Position = UDim2.fromOffset(10, 0),
+            Size = UDim2.new(1, -76, 1, 0),
             BackgroundTransparency = 1,
             Text = textValue,
             TextColor3 = C.white,
@@ -628,7 +706,7 @@ local ok, err = xpcall(function()
         local state = initial == true
         local track = new("TextButton", holder, {
             AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -4, 0.5, 0),
+            Position = UDim2.new(1, -8, 0.5, 0),
             Size = UDim2.fromOffset(46, 24),
             BackgroundColor3 = C.panelLight,
             Text = "",
@@ -644,7 +722,8 @@ local ok, err = xpcall(function()
         corner(dot, 9)
 
         local function render(animated)
-            local trackColor = state and C.green or C.panelLight
+            local trackColor = state and Color3.fromRGB(170, 38, 229)
+                or C.panelLight
             local dotColor = state and C.white or C.muted
             local dotPos = UDim2.fromOffset(state and 25 or 3, 3)
             if animated then
@@ -674,8 +753,13 @@ local ok, err = xpcall(function()
 
         local value = initial
         local holder = uiRow(parent, y, 38)
+        holder.BackgroundColor3 = Color3.fromRGB(14, 24, 54)
+        holder.BackgroundTransparency = 0.10
+        corner(holder, 9)
+        stroke(holder, Color3.fromRGB(76, 70, 167), 0.62)
         local caption = new("TextLabel", holder, {
-            Size = UDim2.new(1, -126, 1, 0),
+            Position = UDim2.fromOffset(10, 0),
+            Size = UDim2.new(1, -138, 1, 0),
             BackgroundTransparency = 1,
             TextColor3 = C.white,
             TextSize = 12,
@@ -735,8 +819,8 @@ local ok, err = xpcall(function()
             Size = UDim2.new(1, 0, 0, 28),
             BackgroundTransparency = 1,
             Text = textValue,
-            TextColor3 = C.muted,
-            TextSize = 11,
+            TextColor3 = Color3.fromRGB(192, 217, 249),
+            TextSize = 12,
             Font = Enum.Font.Gotham,
             TextWrapped = true,
             TextXAlignment = Enum.TextXAlignment.Left
@@ -1580,12 +1664,15 @@ end
         end
         uiLabel(inside, "Цвет 2D-рамки и линий", 257, 24)
         local swatches = {
-            {"Белый", {255,255,255}}, {"Циан", {63,215,255}},
-            {"Фиолет", {163,113,255}}, {"Розовый", {255,95,185}},
-            {"Зелёный", {69,235,129}}, {"Жёлтый", {255,218,73}}
+            {"Белый", {255,255,255}}, {"Красный", {255,50,75}},
+            {"Розовый", {255,49,221}}, {"Пурпур", {183,34,255}},
+            {"Оранжевый", {255,135,35}}, {"Жёлтый", {255,220,52}},
+            {"Зелёный", {57,241,100}}, {"Бирюза", {21,232,193}},
+            {"Циан", {63,215,255}}, {"Синий", {52,95,255}}
         }
         local swatchButtons = {}
         local channelLabels = {}
+        local channelTracks = {}
         local hexBox
         local preview = new("Frame", inside, {
             Position = UDim2.fromOffset(0, 294),
@@ -1626,6 +1713,11 @@ end
             for i, label in ipairs(channelLabels) do
                 if label then label.Text = ({"R", "G", "B"})[i]..": "..rgb[i] end
             end
+            for i, track in ipairs(channelTracks) do
+                local fraction = rgb[i] / 255
+                track.fill.Size = UDim2.fromScale(fraction, 1)
+                track.thumb.Position = UDim2.new(fraction, 0, 0.5, 0)
+            end
             for i, button in ipairs(swatchButtons) do
                 local target = swatches[i][2]
                 local chosenThis = rgb[1]==target[1] and rgb[2]==target[2]
@@ -1665,15 +1757,72 @@ end
             swatchButtons[i] = tile
             connect(tile.Activated, function() setRGB(values) end)
         end
-        uiLabel(inside, "Точная настройка RGB (−/+ по 5)", 378, 20)
+        uiLabel(inside, "RGB: двигай ползунок или жми − / +", 378, 20)
         for i = 1, 3 do
             local channel = i
             local row = uiRow(inside, 404 + (i-1)*41, 36)
             channelLabels[i] = new("TextLabel", row, {
-                Size = UDim2.new(1, -118, 1, 0), BackgroundTransparency = 1,
-                TextColor3 = C.white, TextSize = 13,
-                Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left
+                Position = UDim2.fromOffset(3, 0),
+                Size = UDim2.fromOffset(88, 36),
+                BackgroundTransparency = 1,
+                TextColor3 = C.white, TextSize = 12,
+                Font = Enum.Font.GothamBold,
+                TextXAlignment = Enum.TextXAlignment.Left
             })
+            local track = new("TextButton", row, {
+                Name = "ESP_RGB_" .. channel,
+                Position = UDim2.fromOffset(94, 12),
+                Size = UDim2.new(1, -210, 0, 12),
+                BackgroundColor3 = Color3.fromRGB(29, 39, 85),
+                Text = "", AutoButtonColor = false, ZIndex = 2
+            })
+            corner(track, 6)
+            local channelColor = ({Color3.fromRGB(255,49,105),
+                Color3.fromRGB(43,236,150),
+                Color3.fromRGB(64,156,255)})[channel]
+            local fill = new("Frame", track, {
+                Size = UDim2.fromScale(0, 1),
+                BackgroundColor3 = channelColor,
+                BorderSizePixel = 0, ZIndex = 3
+            })
+            corner(fill, 6)
+            local thumb = new("Frame", track, {
+                Size = UDim2.fromOffset(16, 19),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Position = UDim2.new(0, 0, 0.5, 0),
+                BackgroundColor3 = C.white,
+                BorderSizePixel = 0, ZIndex = 4
+            })
+            corner(thumb, 9)
+            stroke(thumb, channelColor, 0, 1)
+            channelTracks[channel] = {fill = fill, thumb = thumb}
+            local heldInput = nil
+            local function updateFromX(x)
+                local width = math.max(track.AbsoluteSize.X, 1)
+                local t = math.clamp((x-track.AbsolutePosition.X)/width, 0, 1)
+                local rgb = getCurrentRGB()
+                rgb[channel] = math.floor(t*255+0.5)
+                setRGB(rgb)
+            end
+            connect(track.InputBegan, function(input)
+                if input.UserInputType == Enum.UserInputType.Touch or
+                    input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    heldInput = input
+                    updateFromX(input.Position.X)
+                end
+            end)
+            connect(UIS.InputChanged, function(input)
+                if not heldInput then return end
+                local touch = heldInput.UserInputType == Enum.UserInputType.Touch
+                if (touch and input == heldInput) or
+                    (not touch and input.UserInputType ==
+                        Enum.UserInputType.MouseMovement) then
+                    updateFromX(input.Position.X)
+                end
+            end)
+            connect(UIS.InputEnded, function(input)
+                if input == heldInput then heldInput = nil end
+            end)
             for _, opt in ipairs({{direction=-1, right=57}, {direction=1, right=5}}) do
                 local step = new("TextButton", row, {
                     Position = UDim2.new(1, -opt.right-42, 0, 2),
@@ -2771,73 +2920,130 @@ do
     local priorAntiFling = nil
     local popupGeneration = 0
 
-    local clickMenu = new("CanvasGroup", gui, {
-        GroupTransparency = 1,
-        Name = "TimkaPlayerPopup", Size = UDim2.fromOffset(236, 182),
-        Position = UDim2.new(0.5, -118, 0.5, -91),
-        BackgroundColor3 = C.base, BackgroundTransparency = 0.06,
-        BorderSizePixel = 0, Visible = false,
-        Active = true, ZIndex = 40
+    -- Мини-меню в том же стиле, что большое: без группового градиента
+    -- поверх текста, с непрозрачными карточками и RGB-неоном.
+    local clickMenu = new("Frame", gui, {
+        Name = "TimkaPlayerPopup", Size = UDim2.fromOffset(298, 336),
+        Position = UDim2.new(0.5, -149, 0.5, -168),
+        BackgroundColor3 = C.base, BackgroundTransparency = 0.02,
+        BorderSizePixel = 0, Visible = false, Active = true, ZIndex = 40
     })
-    corner(clickMenu, 15)
-    stroke(clickMenu, violet, 0.08, 2)
-    gradient(clickMenu, C.panel, Color3.fromRGB(34, 19, 64), 30)
-    local popupScale = new("UIScale", clickMenu, {Scale = 0.88})
-    local popupTitle = new("TextLabel", clickMenu, {
-        Position = UDim2.fromOffset(12, 9),
-        Size = UDim2.new(1, -49, 0, 25),
-        BackgroundTransparency = 1, Text = "Игрок",
-        TextColor3 = cyan, TextSize = 14,
-        TextTruncate = Enum.TextTruncate.AtEnd,
+    corner(clickMenu, 17)
+    stroke(clickMenu, Color3.fromRGB(70, 220, 255), 0.02, 2.4)
+    local popupBackdrop = new("Frame", clickMenu, {
+        Position = UDim2.fromOffset(2, 2),
+        Size = UDim2.new(1, -4, 1, -4),
+        BackgroundColor3 = Color3.fromRGB(10, 9, 32),
+        BorderSizePixel = 0, ZIndex = 40
+    })
+    corner(popupBackdrop, 16)
+    gradient(popupBackdrop, Color3.fromRGB(8, 15, 41),
+        Color3.fromRGB(28, 10, 57), 34)
+    local popupHead = new("Frame", clickMenu, {
+        Size = UDim2.new(1, 0, 0, 43),
+        BackgroundColor3 = Color3.fromRGB(11, 15, 45),
+        BorderSizePixel = 0, ZIndex = 41
+    })
+    corner(popupHead, 16)
+    local popupBar = new("Frame", popupHead, {
+        Position = UDim2.new(0, 8, 1, -2),
+        Size = UDim2.new(1, -16, 0, 2),
+        BackgroundColor3 = cyan, BorderSizePixel = 0, ZIndex = 42
+    })
+    gradient(popupBar, cyan, Color3.fromRGB(242, 52, 250), 0)
+    local popupScale = new("UIScale", clickMenu, {Scale = 0.86})
+    local popupTitle = new("TextLabel", popupHead, {
+        Position = UDim2.fromOffset(17, 0),
+        Size = UDim2.new(1, -67, 1, -1),
+        BackgroundTransparency = 1, Text = "♛  МИНИ-МЕНЮ",
+        TextColor3 = C.white, TextSize = 17,
         Font = Enum.Font.GothamBold,
-        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 41
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 43
     })
-    local popupSub = new("TextLabel", clickMenu, {
-        Position = UDim2.fromOffset(12, 35),
-        Size = UDim2.new(1, -24, 0, 19),
-        BackgroundTransparency = 1, Text = "@username",
-        TextColor3 = C.muted, TextSize = 11,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 41
-    })
-    local popupClose = new("TextButton", clickMenu, {
-        Size = UDim2.fromOffset(29, 29),
-        Position = UDim2.new(1, -37, 0, 8),
-        BackgroundColor3 = C.red, Text = "×",
-        TextColor3 = C.white, TextSize = 21,
-        Font = Enum.Font.GothamBold, ZIndex = 42
+    local popupClose = new("TextButton", popupHead, {
+        Size = UDim2.fromOffset(31, 30),
+        Position = UDim2.new(1, -39, 0, 6),
+        BackgroundColor3 = Color3.fromRGB(60, 13, 75),
+        Text = "×", TextColor3 = C.white, TextSize = 22,
+        Font = Enum.Font.GothamBold, ZIndex = 44
     })
     corner(popupClose, 8)
-
+    stroke(popupClose, Color3.fromRGB(237, 59, 247), 0.1, 1.5)
+    local avatar = new("ImageLabel", clickMenu, {
+        Name = "SelectedAvatar", Position = UDim2.fromOffset(14, 54),
+        Size = UDim2.fromOffset(64, 64), BackgroundColor3 = C.panel,
+        BackgroundTransparency = 0, Image = "", ZIndex = 42
+    })
+    corner(avatar, 12)
+    stroke(avatar, cyan, 0.05, 2)
+    local popupSub = new("TextLabel", clickMenu, {
+        Position = UDim2.fromOffset(89, 59),
+        Size = UDim2.new(1, -103, 0, 27),
+        BackgroundTransparency = 1, Text = "@username",
+        TextColor3 = C.white, TextSize = 15,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 42
+    })
+    local popupDetail = new("TextLabel", clickMenu, {
+        Position = UDim2.fromOffset(89, 86),
+        Size = UDim2.new(1, -103, 0, 26),
+        BackgroundTransparency = 1, Text = "● Игрок выбран",
+        TextColor3 = C.green, TextSize = 12,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 42
+    })
     local function popupButton(caption, x, y, outlineColor)
         local object = new("TextButton", clickMenu, {
             Position = UDim2.fromOffset(x, y),
-            Size = UDim2.fromOffset(104, 40),
-            BackgroundColor3 = C.panelLight,
+            Size = UDim2.fromOffset(129, 58),
+            BackgroundColor3 = Color3.fromRGB(15, 22, 60),
+            BackgroundTransparency = 0.02,
             Text = caption, TextColor3 = C.white,
-            TextSize = 12, Font = Enum.Font.GothamBold,
-            AutoButtonColor = false, ZIndex = 42
+            TextSize = 14, TextWrapped = true,
+            Font = Enum.Font.GothamBold,
+            AutoButtonColor = false, ZIndex = 43
         })
-        corner(object, 9)
-        stroke(object, outlineColor, 0.25)
+        corner(object, 11)
+        stroke(object, outlineColor, 0.03, 2)
         return object
     end
-    local flingClickBtn = popupButton("⚡ Флинг", 10, 67, violet)
-    local spClickBtn = popupButton("♛ СП", 122, 67, cyan)
-    local whiteClickBtn = popupButton("⬡ Бел.сп.", 10, 119, violet)
-    local tpClickBtn = popupButton("➤ ТП", 122, 119, cyan)
+    local flingClickBtn = popupButton("⚡  ФЛИНГ", 13, 136,
+        Color3.fromRGB(239, 53, 250))
+    local spClickBtn = popupButton("♛  ПРИОРИТЕТ", 156, 136, cyan)
+    local whiteClickBtn = popupButton("⬡  БЕЛЫЙ СПИСОК", 13, 205, cyan)
+    local tpClickBtn = popupButton("➤  ТЕЛЕПОРТ", 156, 205,
+        Color3.fromRGB(237, 67, 255))
+    local popupActionStatus = new("TextLabel", clickMenu, {
+        Position = UDim2.fromOffset(13, 271),
+        Size = UDim2.new(1, -26, 0, 24),
+        BackgroundTransparency = 1, Text = "Готов к действию",
+        TextColor3 = Color3.fromRGB(181, 223, 255),
+        Font = Enum.Font.Gotham, TextSize = 12,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 43
+    })
+    local stopClickBtn = new("TextButton", clickMenu, {
+        Position = UDim2.fromOffset(13, 298),
+        Size = UDim2.new(1, -26, 0, 27),
+        BackgroundColor3 = Color3.fromRGB(47, 15, 63),
+        Text = "■  Остановить Fling", TextColor3 = C.white,
+        Font = Enum.Font.GothamBold, TextSize = 12,
+        BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 43
+    })
+    corner(stopClickBtn, 9)
+    stroke(stopClickBtn, Color3.fromRGB(240, 69, 155), 0.21)
 
     local function closePlayerPopup()
         currentClickedPlayer = nil
         popupGeneration = popupGeneration + 1
         local thisGeneration = popupGeneration
         if not clickMenu.Visible then return end
-        tween(popupScale, 0.26, {Scale = 0.94},
+        tween(popupScale, 0.22, {Scale = 0.87},
             Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-        tween(clickMenu, 0.24, {GroupTransparency = 1},
+        tween(clickMenu, 0.22, {BackgroundTransparency = 0.35},
             Enum.EasingStyle.Sine)
-        task.delay(0.27, function()
+        task.delay(0.24, function()
             if active and popupGeneration == thisGeneration then
                 clickMenu.Visible = false
             end
@@ -2849,31 +3055,35 @@ do
         local id = other.UserId
         local isSuper = superPriorityTargets[id] == true
         local isWhite = whiteList[id] == true
-        spClickBtn.Text = isSuper and "♛ СП ✓" or "♛ СП"
-        whiteClickBtn.Text = isWhite and "⬡ Бел.сп. ✓" or "⬡ Бел.сп."
-        spClickBtn.BackgroundColor3 = isSuper and C.red or C.panelLight
-        whiteClickBtn.BackgroundColor3 = isWhite and C.green or C.panelLight
+        spClickBtn.Text = isSuper and "♛  ПРИОРИТЕТ ✓" or "♛  ПРИОРИТЕТ"
+        whiteClickBtn.Text = isWhite and "⬡  БЕЛЫЙ СПИСОК ✓"
+            or "⬡  БЕЛЫЙ СПИСОК"
+        spClickBtn.BackgroundColor3 = isSuper and
+            Color3.fromRGB(82, 21, 113) or C.panelLight
+        whiteClickBtn.BackgroundColor3 = isWhite and
+            Color3.fromRGB(15, 81, 78) or C.panelLight
     end
     local function openPlayerPopup(other)
         if not active or other == player or other.Parent ~= Players then
             return
         end
         currentClickedPlayer = other
-        popupTitle.Text = other.DisplayName
         popupSub.Text = "@" .. other.Name
+        popupDetail.Text = "●  " .. other.DisplayName
+        avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" ..
+            tostring(other.UserId) .. "&w=150&h=150"
+        popupActionStatus.Text = "Выбран игрок: " .. other.Name
         refreshPopupButtons()
         popupGeneration = popupGeneration + 1
         if not clickMenu.Visible then
-            clickMenu.GroupTransparency = 1
-            popupScale.Scale = 0.92
+            popupScale.Scale = 0.86
         end
+        clickMenu.BackgroundTransparency = 0.02
         clickMenu.Visible = true
         if settings.popupCenter then
-            clickMenu.Position = UDim2.new(0.5, -118, 0.5, -91)
+            clickMenu.Position = UDim2.new(0.5, -149, 0.5, -168)
         end
-        tween(popupScale, 0.34, {Scale = 1}, Enum.EasingStyle.Quint)
-        tween(clickMenu, 0.32, {GroupTransparency = 0},
-            Enum.EasingStyle.Sine)
+        tween(popupScale, 0.37, {Scale = 1}, Enum.EasingStyle.Back)
     end
     connect(popupClose.Activated, closePlayerPopup)
     connect(Players.PlayerRemoving, function(other)
@@ -2962,14 +3172,21 @@ do
                 local began = os.clock()
                 local lastTeleport = -math.huge
                 while active and flingActive and token == flingGeneration
-                    and os.clock() - began < 1.05 do
+                    and os.clock() - began < 1.55 do
                     if myChar ~= player.Character or not myRoot.Parent
                         or not targetRoot.Parent or targetHum.Health <= 0 then
                         break
                     end
-                    -- Смещение +2 studs как в Synt teleportAndFlingOnce().
-                    if os.clock() - lastTeleport >= 0.10 then
-                        myRoot.CFrame = targetRoot.CFrame + Vector3.new(2, 0, 0)
+                    -- Приближаем корень к цели по локальным координатам.
+                    -- Серверная физика/защита игры всё равно могут отменить Fling.
+                    if os.clock() - lastTeleport >= 0.075 then
+                        local phase = math.floor((os.clock()-began)/0.075) % 4
+                        local x = phase < 2 and 0.32 or -0.32
+                        local z = phase % 2 == 0 and 0.36 or -0.36
+                        myRoot.CFrame = targetRoot.CFrame *
+                            CFrame.new(x, 0, z)
+                        myRoot.AssemblyAngularVelocity =
+                            Vector3.new(0, 180, 0)
                         lastTeleport = os.clock()
                     end
                     RunService.Heartbeat:Wait()
@@ -2986,8 +3203,30 @@ do
     end
     connect(flingClickBtn.Activated, function()
         local other = currentClickedPlayer
-        closePlayerPopup()
-        if other then doFling(other) end
+        if not other or other.Parent ~= Players then
+            popupActionStatus.Text = "⚠ Сначала выбери игрока"
+            return
+        end
+        if flingActive then
+            popupActionStatus.Text = "Флинг уже выполняется — нажми Стоп"
+            return
+        end
+        if spinEnabled then
+            popupActionStatus.Text = "⚠ Выключи Spin перед флингом"
+            return
+        end
+        popupActionStatus.Text = "⚡ Fling: " .. other.Name .. " (запуск...)"
+        doFling(other, function(success)
+            if active and clickMenu.Visible and currentClickedPlayer == other then
+                popupActionStatus.Text = success
+                    and "✓ Попытка завершена (зависит от сервера)"
+                    or "⚠ Не удалось завершить Fling"
+            end
+        end)
+    end)
+    connect(stopClickBtn.Activated, function()
+        stopFling()
+        popupActionStatus.Text = "■ Fling остановлен"
     end)
     connect(spClickBtn.Activated, function()
         local other = currentClickedPlayer
@@ -3071,8 +3310,10 @@ do
             if not settings.popupCenter then
                 local cam = Workspace.CurrentCamera
                 local view = cam and cam.ViewportSize or Vector2.new(800, 360)
-                local x = math.clamp(input.Position.X - 116, 4, math.max(4, view.X-240))
-                local y = math.clamp(input.Position.Y - 70, 4, math.max(4, view.Y-186))
+                local x = math.clamp(input.Position.X - 149, 4,
+                    math.max(4, view.X - 302))
+                local y = math.clamp(input.Position.Y - 140, 4,
+                    math.max(4, view.Y - 340))
                 clickMenu.Position = UDim2.fromOffset(x, y)
             end
             openPlayerPopup(target)
@@ -5048,18 +5289,28 @@ end
         local function fitLandscape()
             if not active then return end
             local bounds = screenSize()
-            local width = math.max(230, math.min(780, bounds.X - 18))
-            local height = math.max(170, math.min(440, bounds.Y - 16))
+            local minW = math.min(430, math.max(230, bounds.X - 18))
+            local minH = math.min(275, math.max(175, bounds.Y - 16))
+            local maxW = math.max(minW, bounds.X - 18)
+            local maxH = math.max(minH, bounds.Y - 16)
+            local width = math.clamp(tonumber(settings.menuWidth) or 950,
+                minW, maxW)
+            local height = math.clamp(tonumber(settings.menuHeight) or 515,
+                minH, maxH)
             menu.Size = UDim2.fromOffset(width, height)
-            local navWidth = width < 570 and 126 or 160
+            local navWidth = width < 550 and 128 or
+                (width < 780 and 164 or 214)
             sidebar.Size = UDim2.new(0, navWidth, 1, 0)
-            content.Position = UDim2.fromOffset(navWidth + 10, 0)
-            content.Size = UDim2.new(1, -(navWidth + 10), 1, 0)
-            dragArea.TextSize = width < 520 and 11 or 15
+            content.Position = UDim2.fromOffset(navWidth + 12, 0)
+            content.Size = UDim2.new(1, -(navWidth + 12), 1, 0)
+            dragArea.TextSize = width < 580 and 12 or
+                (width < 860 and 14 or 17)
             if extrasAPI.fpsLabel then
                 extrasAPI.fpsLabel.Visible = settings.fpsOverlay ~= false
-                extrasAPI.fpsLabel.Size = UDim2.fromOffset(width < 520 and 60 or 78, 28)
-                extrasAPI.fpsLabel.Position = UDim2.new(1, width < 520 and -145 or -172, 0, 10)
+                extrasAPI.fpsLabel.Size = UDim2.fromOffset(
+                    width < 580 and 56 or 94, 31)
+                extrasAPI.fpsLabel.Position = UDim2.new(1,
+                    width < 580 and -153 or -193, 0, 13)
             end
             if not layoutReady then
                 menu.Position = UDim2.fromOffset(
@@ -5093,13 +5344,13 @@ end
                 if not menu.Visible then
                     menuScale.Scale = 0.95
                     menu.BackgroundTransparency = math.min(0.30, baseTransparency+0.15)
-                    pageHost.GroupTransparency = 0.85
+                    pageHost.GroupTransparency = 0.65
                 end
                 menu.Visible = true
                 tween(menuScale, 0.53, {Scale=1}, Enum.EasingStyle.Quint)
                 tween(menu, 0.35, {BackgroundTransparency=baseTransparency},
                     Enum.EasingStyle.Sine)
-                tween(pageHost, 0.39, {GroupTransparency=0},
+                tween(pageHost, 0.45, {GroupTransparency=0},
                     Enum.EasingStyle.Sine)
                 tween(menuStroke, 0.39, {Transparency=0.04}, Enum.EasingStyle.Sine)
                 tween(openButton, 0.2, {BackgroundTransparency=0.12})
@@ -5198,6 +5449,63 @@ end
             dragInput, buttonInput = nil, nil
             dragMoved, buttonMoved = false, false
         end)
+
+        -- Потяни правый нижний угол: размер сохраняется между запусками.
+        do
+            local grip = new("TextButton", menu, {
+                Name = "TimkaResizeGrip", Size = UDim2.fromOffset(43, 43),
+                AnchorPoint = Vector2.new(1, 1),
+                Position = UDim2.new(1, 1, 1, 1),
+                BackgroundTransparency = 1, Text = "◢",
+                TextColor3 = Color3.fromRGB(241, 75, 255),
+                TextSize = 31, Font = Enum.Font.GothamBold,
+                AutoButtonColor = false, ZIndex = 35
+            })
+            local movingInput, movingOrigin, movingSize, movingCenter
+            connect(grip.InputBegan, function(input)
+                local typ = input.UserInputType
+                if typ ~= Enum.UserInputType.Touch and
+                    typ ~= Enum.UserInputType.MouseButton1 then return end
+                movingInput, movingOrigin = input, input.Position
+                movingSize, movingCenter = menu.AbsoluteSize, menu.Position
+            end)
+            connect(UIS.InputChanged, function(input)
+                if not movingInput then return end
+                local touch = movingInput.UserInputType == Enum.UserInputType.Touch
+                if (touch and input ~= movingInput) or (not touch and
+                    input.UserInputType ~= Enum.UserInputType.MouseMovement) then
+                    return
+                end
+                local delta = input.Position - movingOrigin
+                local bounds = screenSize()
+                local minW = math.min(430, math.max(230, bounds.X-18))
+                local minH = math.min(275, math.max(175, bounds.Y-16))
+                local w = math.clamp(movingSize.X + delta.X,
+                    minW, math.max(minW, bounds.X-18))
+                local h = math.clamp(movingSize.Y + delta.Y,
+                    minH, math.max(minH, bounds.Y-16))
+                settings.menuWidth, settings.menuHeight = w, h
+                menu.Position = UDim2.fromOffset(
+                    movingCenter.X.Offset + (w-movingSize.X)/2,
+                    movingCenter.Y.Offset + (h-movingSize.Y)/2)
+                fitLandscape()
+            end)
+            connect(UIS.InputEnded, function(input)
+                if input ~= movingInput then return end
+                movingInput = nil
+                saveSettings()
+            end)
+            local themePage = pages.themes
+            if themePage then
+                local card, inner = uiCard("themes", "▣  РАЗМЕР ОКНА", 125)
+                uiLabel(inner, "Потяни ◢ в правом нижнем углу окна", 0, 27)
+                uiButton(inner, "↺  Стандартный размер", 33, function()
+                    settings.menuWidth, settings.menuHeight = 950, 515
+                    fitLandscape()
+                    saveSettings()
+                end, cyan)
+            end
+        end
 
         -- Переключаем вкладки через плавный fade-out и fade-in.
         local pageScale = new("UIScale", pageHost, {Scale = 1})
